@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Aluno {
+  id         String        @id @default(uuid())
+  nome       String
+  telefone   String?
+  ativo      Boolean       @default(true)
+  aulas      AulaSemanal[]
+  createdAt  DateTime      @default(now())
+}
+
+model Local {
+  id            String        @id @default(uuid())
+  nome          String
+  tipo          String        // "ACADEMIA" ou "CONDOMINIO"
+  bairro        String
+  distanciaKm   Float         @default(0.0)
+  tempoMinutos  Int           @default(0)
+  aulas         AulaSemanal[]
+  createdAt     DateTime      @default(now())
+}
+
+model AulaSemanal {
+  id             String   @id @default(uuid())
+  alunoId        String
+  aluno          Aluno    @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  localId        String
+  local          Local    @relation(fields: [localId], references: [id], onDelete: Cascade)
+  diaDaSemana    Int      // 0=Dom 1=Seg 2=Ter 3=Qua 4=Qui 5=Sex 6=Sab
+  horarioInicio  String   // "08:00"
+  horarioFim     String   // "09:00"
+  valorAula      Float
+  ativo          Boolean  @default(true)
+  createdAt      DateTime @default(now())
+}
+
+model Configuracao {
+  key   String @id
+  value String
+}
