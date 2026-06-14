@@ -45,5 +45,5 @@ EXPOSE 3000
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-# Run database schema push before starting the Next.js standalone server
-CMD prisma db push --accept-data-loss && node server.js
+# Run migrations then start the Next.js standalone server
+CMD prisma migrate deploy && node server.js
