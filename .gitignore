@@ -45,6 +45,3 @@ next-env.d.ts
 *.db-journal
 *.db-wal
 *.db-shm
-
-# Pasta de projeto anterior (template base, não faz parte deste projeto)
-/escala-app/
