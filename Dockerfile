@@ -26,21 +26,17 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy standalone Next.js build (includes minimal node_modules)
+# Copy standalone Next.js build
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy Prisma schema + migrations
+# Copy Prisma schema, migrations and config (needed by migrate deploy)
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-
-# Copy prisma.config.ts (needed by prisma migrate deploy)
 COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
 
-# Copy Prisma CLI from builder into the runner's node_modules
-# (after standalone copy so it doesn't get overwritten)
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+# Install Prisma CLI globally (brings @prisma/engines and all deps)
+RUN npm install -g prisma
 
 USER nextjs
 
@@ -48,4 +44,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["sh", "-c", "./node_modules/.bin/prisma migrate deploy && node server.js"]
+CMD ["sh", "-c", "prisma migrate deploy && node server.js"]
