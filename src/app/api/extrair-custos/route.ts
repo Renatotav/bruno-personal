@@ -24,9 +24,30 @@ Estrutura JSON obrigatória:
   "descricao": string (máximo 60 caracteres descrevendo o documento lido)
 }`;
 
+    // Descobre dinamicamente qual modelo a chave do usuário suporta
+    let modelName = "gemini-1.5-flash"; // fallback padrão
+    try {
+      const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`);
+      if (listRes.ok) {
+        const listData = await listRes.json();
+        const models = listData.models || [];
+        // Pega o primeiro que contenha "flash" e suporte generateContent, ou "pro"
+        const flashModel = models.find((m: any) => m.name.includes("flash") && m.supportedGenerationMethods?.includes("generateContent"));
+        const proModel = models.find((m: any) => m.name.includes("pro") && m.supportedGenerationMethods?.includes("generateContent"));
+        
+        if (flashModel) {
+          modelName = flashModel.name.replace("models/", "");
+        } else if (proModel) {
+          modelName = proModel.name.replace("models/", "");
+        }
+      }
+    } catch (e) {
+      console.error("Erro ao listar modelos", e);
+    }
+
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: modelName,
       generationConfig: { responseMimeType: "application/json" }
     });
 
@@ -46,6 +67,17 @@ Estrutura JSON obrigatória:
     return NextResponse.json({ success: true, ...data });
   } catch (e: any) {
     console.error("Erro extração Gemini", e);
-    return NextResponse.json({ success: false, error: e.message ?? "Erro ao processar documento." }, { status: 500 });
+    
+    let errorMsg = e.message ?? "Erro ao processar documento.";
+    if (errorMsg.includes("404 Not Found") || errorMsg.includes("is not found")) {
+      try {
+        const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`);
+        const listData = await listRes.json();
+        const available = listData.models?.map((m: any) => m.name.replace("models/", "")).join(", ") || "Nenhum";
+        errorMsg = `Modelo não liberado. A sua chave tem acesso aos modelos: [${available}]. Gere uma nova chave no AI Studio.`;
+      } catch (err) {}
+    }
+    
+    return NextResponse.json({ success: false, error: errorMsg }, { status: 500 });
   }
 }
