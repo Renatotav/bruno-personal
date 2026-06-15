@@ -179,9 +179,9 @@ export default function ConfiguracoesPage() {
       setExtractMsg({ type: "err", text: `Arquivo muito grande. Máximo ${MAX_MB} MB.` });
       return;
     }
-    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
     if (!allowed.includes(file.type)) {
-      setExtractMsg({ type: "err", text: "Formato não suportado pelo Groq. Use apenas Imagens (JPG, PNG ou WebP)." });
+      setExtractMsg({ type: "err", text: "Formato não suportado. Use JPG, PNG, WebP ou PDF." });
       return;
     }
 
@@ -459,7 +459,7 @@ export default function ConfiguracoesPage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -479,18 +479,18 @@ export default function ConfiguracoesPage() {
           ) : (
             <>
               <svg className={`h-8 w-8 transition-colors ${isDragging ? "text-purple-400" : "text-slate-500"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
               <div>
                 <p className={`text-sm font-medium transition-colors ${isDragging ? "text-purple-300" : "text-slate-300"}`}>
-                  {isDragging ? "Solte a imagem aqui" : "Arraste uma imagem ou clique para selecionar"}
+                  {isDragging ? "Solte o arquivo aqui" : "Arraste um documento ou clique para selecionar"}
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
-                  Boleto IPVA, apólice de seguro, nota de manutenção · Apenas JPG, PNG e WebP · máx. 5 MB
+                  Boleto IPVA, apólice de seguro, nota de manutenção · JPG, PNG e PDF · máx. 5 MB
                 </p>
               </div>
               <span className="rounded-md border border-purple-700/60 bg-purple-900/20 px-3 py-1 text-xs font-medium text-purple-400">
-                Llama 3.2 Vision (Groq)
+                Gemini 1.5 Flash (Google)
               </span>
             </>
           )}

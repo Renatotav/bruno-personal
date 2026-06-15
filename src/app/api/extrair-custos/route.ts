@@ -1,76 +1,63 @@
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
-  if (!process.env.GROQ_API_KEY) {
-    return NextResponse.json({ success: false, error: "GROQ_API_KEY não configurada no servidor." }, { status: 500 });
+  if (!process.env.GEMINI_API_KEY) {
+    return NextResponse.json({ success: false, error: "GEMINI_API_KEY não configurada no servidor." }, { status: 500 });
   }
 
   try {
     const { base64, mediaType } = await request.json() as { base64: string; mediaType: string };
 
-    if (mediaType === "application/pdf") {
-      return NextResponse.json({ success: false, error: "PDFs não são suportados. Envie apenas imagens (JPG, PNG)." }, { status: 400 });
-    }
-
     const prompt = `Você é um assistente que analisa documentos de custos de veículos brasileiros.
 Analise este documento (boleto de IPVA, apólice de seguro, nota fiscal de manutenção, fatura DPVAT, etc.)
 e extraia os valores monetários relevantes.
 
-Retorne SOMENTE um objeto JSON válido, sem markdown, sem explicações, sem texto extra:
+Retorne SOMENTE um objeto JSON válido. Use 0 para os valores não encontrados.
+
+Estrutura JSON obrigatória:
 {
-  "ipvaAnual": 0,
-  "seguroAnual": 0,
-  "dpvatAnual": 0,
-  "manutencaoMensal": 0,
-  "descricao": "o que foi identificado no documento"
-}
+  "ipvaAnual": número (valor total anual do IPVA),
+  "seguroAnual": número (valor total anual do seguro),
+  "dpvatAnual": número (valor total do DPVAT),
+  "manutencaoMensal": número (se for nota de revisão/óleo, divida o total por 6 para estimar o valor mensal),
+  "descricao": string (máximo 60 caracteres descrevendo o documento lido)
+}`;
 
-Regras:
-- Valores em reais sem símbolo, apenas número (ex: 1250.50)
-- IPVA: valor total anual do imposto
-- Seguro: prêmio anual do seguro do veículo
-- DPVAT: valor do DPVAT/SPVAT
-- Manutenção: se for nota de revisão/troca de óleo/peças, divida o total por 6 para estimar mensal
-- Use 0 nos campos não presentes no documento
-- descricao: máximo 60 caracteres descrevendo o tipo de documento`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const res = await fetch(url, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama-3.2-11b-vision-preview",
-        messages: [
+        contents: [
           {
-            role: "user",
-            content: [
-              { type: "text", text: prompt },
-              { type: "image_url", image_url: { url: `data:${mediaType};base64,${base64}` } }
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: mediaType, data: base64 } }
             ]
           }
         ],
-        max_tokens: 500,
-        temperature: 0
+        generationConfig: {
+          responseMimeType: "application/json"
+        }
       })
     });
 
     const data = await res.json();
 
     if (!res.ok) {
-      throw new Error(data.error?.message || "Erro na API da Groq");
+      throw new Error(data.error?.message || "Erro na API do Gemini");
     }
 
-    const text = data.choices?.[0]?.message?.content || "";
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
     
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("Resposta inesperada da IA. Não retornou JSON.");
-
-    const result = JSON.parse(jsonMatch[0]);
+    // Como pedimos responseMimeType: "application/json", o texto já deve ser um JSON válido.
+    const result = JSON.parse(text);
     return NextResponse.json({ success: true, ...result });
   } catch (e: any) {
-    console.error("Erro extração Groq", e);
+    console.error("Erro extração Gemini", e);
     return NextResponse.json({ success: false, error: e.message ?? "Erro ao processar documento." }, { status: 500 });
   }
 }
