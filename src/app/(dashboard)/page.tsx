@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { calcularCustoAula, parseCfg, formatBRL, statusBadge, statusLabel, DIAS_SEMANA } from "@/lib/calculos";
+import { calcularCustoAula, parseCfg, parseCfgFixos, formatBRL, statusBadge, statusLabel, DIAS_SEMANA } from "@/lib/calculos";
 import Link from "next/link";
 
 export const revalidate = 0;
