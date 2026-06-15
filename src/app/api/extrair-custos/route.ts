@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function POST(request: Request) {
   if (!process.env.GEMINI_API_KEY) {
@@ -23,47 +24,26 @@ Estrutura JSON obrigatória:
   "descricao": string (máximo 60 caracteres descrevendo o documento lido)
 }`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: mediaType, data: base64 } }
-            ]
-          }
-        ],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
-      })
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash",
+      generationConfig: { responseMimeType: "application/json" }
     });
 
-    const data = await res.json();
-
-    if (!res.ok) {
-      let available = "Erro ao buscar modelos";
-      try {
-        const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`);
-        const listData = await listRes.json();
-        available = listData.models?.map((m: any) => m.name).join(", ") || "Nenhum modelo encontrado";
-      } catch (e2) {
-        console.error("Erro no debug", e2);
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          data: base64,
+          mimeType: mediaType
+        }
       }
-      throw new Error(`${data.error?.message}. MODELOS LIBERADOS: ${available}`);
-    }
+    ]);
 
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    
-    // Como pedimos responseMimeType: "application/json", o texto já deve ser um JSON válido.
-    const result = JSON.parse(text);
-    return NextResponse.json({ success: true, ...result });
+    const text = result.response.text();
+    const data = JSON.parse(text);
+
+    return NextResponse.json({ success: true, ...data });
   } catch (e: any) {
     console.error("Erro extração Gemini", e);
     return NextResponse.json({ success: false, error: e.message ?? "Erro ao processar documento." }, { status: 500 });
