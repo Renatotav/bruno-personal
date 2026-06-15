@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(request: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ success: false, error: "ANTHROPIC_API_KEY não configurada no servidor." }, { status: 500 });
+  if (!process.env.GROQ_API_KEY) {
+    return NextResponse.json({ success: false, error: "GROQ_API_KEY não configurada no servidor." }, { status: 500 });
   }
 
   try {
     const { base64, mediaType } = await request.json() as { base64: string; mediaType: string };
+
+    if (mediaType === "application/pdf") {
+      return NextResponse.json({ success: false, error: "PDFs não são suportados. Envie apenas imagens (JPG, PNG)." }, { status: 400 });
+    }
 
     const prompt = `Você é um assistente que analisa documentos de custos de veículos brasileiros.
 Analise este documento (boleto de IPVA, apólice de seguro, nota fiscal de manutenção, fatura DPVAT, etc.)
@@ -33,41 +34,43 @@ Regras:
 - Use 0 nos campos não presentes no documento
 - descricao: máximo 60 caracteres descrevendo o tipo de documento`;
 
-    type ContentBlock =
-      | { type: "text"; text: string }
-      | { type: "image"; source: { type: "base64"; media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp"; data: string } }
-      | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } };
-
-    const content: ContentBlock[] = [{ type: "text", text: prompt }];
-
-    if (mediaType === "application/pdf") {
-      content.push({
-        type: "document",
-        source: { type: "base64", media_type: "application/pdf", data: base64 },
-      });
-    } else {
-      const validImage = ["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mediaType)
-        ? (mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp")
-        : "image/jpeg";
-      content.push({
-        type: "image",
-        source: { type: "base64", media_type: validImage, data: base64 },
-      });
-    }
-
-    const message = await client.messages.create({
-      model: "claude-3-5-haiku-20241022",
-      max_tokens: 256,
-      messages: [{ role: "user", content }],
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "llama-3.2-90b-vision-preview",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              { type: "image_url", image_url: { url: `data:${mediaType};base64,${base64}` } }
+            ]
+          }
+        ],
+        max_tokens: 500,
+        temperature: 0
+      })
     });
 
-    const text = message.content[0].type === "text" ? message.content[0].text : "";
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error?.message || "Erro na API da Groq");
+    }
+
+    const text = data.choices?.[0]?.message?.content || "";
+    
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("Resposta inesperada da IA.");
+    if (!jsonMatch) throw new Error("Resposta inesperada da IA. Não retornou JSON.");
 
     const result = JSON.parse(jsonMatch[0]);
     return NextResponse.json({ success: true, ...result });
   } catch (e: any) {
+    console.error("Erro extração Groq", e);
     return NextResponse.json({ success: false, error: e.message ?? "Erro ao processar documento." }, { status: 500 });
   }
 }
