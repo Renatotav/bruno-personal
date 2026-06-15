@@ -82,7 +82,7 @@ export interface ConfigFixos {
   ipvaAnual: number;
   seguroAnual: number;
   dpvatAnual: number;
-  manutencaoMensal: number;
+  manutencaoAnual: number;
   kmPorMes: number;
 }
 
@@ -90,7 +90,7 @@ export const CONFIG_FIXOS_PADRAO: ConfigFixos = {
   ipvaAnual: 0,
   seguroAnual: 0,
   dpvatAnual: 0,
-  manutencaoMensal: 0,
+  manutencaoAnual: 0,
   kmPorMes: 1000,
 };
 
@@ -103,13 +103,13 @@ export function parseCfgFixos(configs: { key: string; value: string }[]): Config
     ipvaAnual:        get("ipva_anual",        CONFIG_FIXOS_PADRAO.ipvaAnual),
     seguroAnual:      get("seguro_anual",       CONFIG_FIXOS_PADRAO.seguroAnual),
     dpvatAnual:       get("dpvat_anual",        CONFIG_FIXOS_PADRAO.dpvatAnual),
-    manutencaoMensal: get("manutencao_mensal",  CONFIG_FIXOS_PADRAO.manutencaoMensal),
+    manutencaoAnual:  get("manutencao_anual",   CONFIG_FIXOS_PADRAO.manutencaoAnual),
     kmPorMes:         get("km_por_mes",         CONFIG_FIXOS_PADRAO.kmPorMes),
   };
 }
 
 export function calcularCustoFixoPorKm(fixos: ConfigFixos): { mensalTotal: number; porKm: number } {
-  const mensalTotal = (fixos.ipvaAnual + fixos.seguroAnual + fixos.dpvatAnual) / 12 + fixos.manutencaoMensal;
+  const mensalTotal = (fixos.ipvaAnual + fixos.seguroAnual + fixos.dpvatAnual + fixos.manutencaoAnual) / 12;
   const porKm = fixos.kmPorMes > 0 ? mensalTotal / fixos.kmPorMes : 0;
   return { mensalTotal, porKm };
 }

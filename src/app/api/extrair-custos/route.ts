@@ -20,7 +20,7 @@ Estrutura JSON obrigatória:
   "ipvaAnual": número (valor total anual do IPVA),
   "seguroAnual": número (valor total anual do seguro),
   "dpvatAnual": número (valor total do DPVAT),
-  "manutencaoMensal": número (se for nota de revisão/óleo, divida o total por 6 para estimar o valor mensal),
+  "manutencaoAnual": número (se for nota de oficina ou orçamento, retorne o valor total exato do documento sem dividir),
   "descricao": string (máximo 60 caracteres descrevendo o documento lido)
 }`;
 

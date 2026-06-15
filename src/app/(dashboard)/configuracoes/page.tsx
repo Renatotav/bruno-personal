@@ -80,7 +80,7 @@ export default function ConfiguracoesPage() {
     ipvaAnual: String(CONFIG_FIXOS_PADRAO.ipvaAnual),
     seguroAnual: String(CONFIG_FIXOS_PADRAO.seguroAnual),
     dpvatAnual: String(CONFIG_FIXOS_PADRAO.dpvatAnual),
-    manutencaoMensal: String(CONFIG_FIXOS_PADRAO.manutencaoMensal),
+    manutencaoAnual: String(CONFIG_FIXOS_PADRAO.manutencaoAnual),
     kmPorMes: String(CONFIG_FIXOS_PADRAO.kmPorMes),
   });
   const [fixosSubmitting, setFixosSubmitting] = useState(false);
@@ -109,7 +109,7 @@ export default function ConfiguracoesPage() {
         ipvaAnual: String(pf.ipvaAnual),
         seguroAnual: String(pf.seguroAnual),
         dpvatAnual: String(pf.dpvatAnual),
-        manutencaoMensal: String(pf.manutencaoMensal),
+        manutencaoAnual: String(pf.manutencaoAnual),
         kmPorMes: String(pf.kmPorMes),
       });
     });
@@ -147,7 +147,7 @@ export default function ConfiguracoesPage() {
       ipvaAnual: parseFloat(fixosForm.ipvaAnual) || 0,
       seguroAnual: parseFloat(fixosForm.seguroAnual) || 0,
       dpvatAnual: parseFloat(fixosForm.dpvatAnual) || 0,
-      manutencaoMensal: parseFloat(fixosForm.manutencaoMensal) || 0,
+      manutencaoAnual: parseFloat(fixosForm.manutencaoAnual) || 0,
       kmPorMes: parseFloat(fixosForm.kmPorMes) || 1000,
     });
     setFixosSubmitting(false);
@@ -206,7 +206,7 @@ export default function ConfiguracoesPage() {
           ...(data.ipvaAnual        > 0 ? { ipvaAnual:        String(data.ipvaAnual) }        : {}),
           ...(data.seguroAnual      > 0 ? { seguroAnual:      String(data.seguroAnual) }      : {}),
           ...(data.dpvatAnual       > 0 ? { dpvatAnual:       String(data.dpvatAnual) }       : {}),
-          ...(data.manutencaoMensal > 0 ? { manutencaoMensal: String(data.manutencaoMensal) } : {}),
+          ...(data.manutencaoAnual > 0 ? { manutencaoAnual: String(data.manutencaoAnual) } : {}),
         }));
         setExtractMsg({ type: "ok", text: data.descricao ? `Preenchido: ${data.descricao}` : "Dados extraídos com sucesso!" });
       } catch (e: any) {
@@ -229,7 +229,7 @@ export default function ConfiguracoesPage() {
     ipvaAnual: parseFloat(fixosForm.ipvaAnual) || 0,
     seguroAnual: parseFloat(fixosForm.seguroAnual) || 0,
     dpvatAnual: parseFloat(fixosForm.dpvatAnual) || 0,
-    manutencaoMensal: parseFloat(fixosForm.manutencaoMensal) || 0,
+    manutencaoAnual: parseFloat(fixosForm.manutencaoAnual) || 0,
     kmPorMes: parseFloat(fixosForm.kmPorMes) || 1000,
   });
 
@@ -507,7 +507,7 @@ export default function ConfiguracoesPage() {
         )}
 
         <form onSubmit={handleFixos} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-400">IPVA (R$/ano)</label>
               <input
@@ -536,24 +536,24 @@ export default function ConfiguracoesPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-400">Manutenção Média (R$/mês)</label>
+              <label className="text-xs font-semibold text-slate-400">Manutenção (R$/ano)</label>
               <input
-                type="number" step="0.01" min="0" value={fixosForm.manutencaoMensal}
-                onChange={(e) => setFixosForm({ ...fixosForm, manutencaoMensal: e.target.value })}
+                type="number" step="0.01" min="0" value={fixosForm.manutencaoAnual}
+                onChange={(e) => setFixosForm({ ...fixosForm, manutencaoAnual: e.target.value })}
                 placeholder="0,00" className={inputClass}
               />
-              <p className="text-[10px] text-slate-500">Revisões, óleo, filtros, etc.</p>
+              <p className="text-[10px] text-slate-500">Revisões, suspensão, óleo, etc.</p>
             </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-400">Km Rodados por Mês (estimativa)</label>
-              <input
-                type="number" step="1" min="1" value={fixosForm.kmPorMes}
-                onChange={(e) => setFixosForm({ ...fixosForm, kmPorMes: e.target.value })}
-                placeholder="1000" className={inputClass}
-              />
-              <p className="text-[10px] text-slate-500">Usado para calcular o custo fixo por km.</p>
-            </div>
+          </div>
+          
+          <div className="space-y-1 w-full lg:w-1/4">
+            <label className="text-xs font-semibold text-slate-400">Km Rodados por Mês (estimativa)</label>
+            <input
+              type="number" step="1" min="1" value={fixosForm.kmPorMes}
+              onChange={(e) => setFixosForm({ ...fixosForm, kmPorMes: e.target.value })}
+              placeholder="1000" className={inputClass}
+            />
+            <p className="text-[10px] text-slate-500">Usado para calcular o custo fixo por km.</p>
           </div>
 
           {/* Preview custos fixos */}
@@ -562,21 +562,18 @@ export default function ConfiguracoesPage() {
               Resumo mensal dos custos fixos
             </p>
             <div className="flex justify-between text-slate-300">
-              <span>IPVA + Seguro + DPVAT ÷ 12</span>
+              <span>IPVA + Seguro + DPVAT + Manutenção ÷ 12</span>
               <span>
                 R${" "}
                 {(
                   ((parseFloat(fixosForm.ipvaAnual) || 0) +
                     (parseFloat(fixosForm.seguroAnual) || 0) +
-                    (parseFloat(fixosForm.dpvatAnual) || 0)) /
+                    (parseFloat(fixosForm.dpvatAnual) || 0) +
+                    (parseFloat(fixosForm.manutencaoAnual) || 0)) /
                   12
                 ).toFixed(2)}
                 /mês
               </span>
-            </div>
-            <div className="flex justify-between text-slate-300">
-              <span>Manutenção</span>
-              <span>R$ {(parseFloat(fixosForm.manutencaoMensal) || 0).toFixed(2)}/mês</span>
             </div>
             <div className="flex justify-between text-white font-bold border-t border-slate-700 pt-1.5 mt-1">
               <span>Total fixo mensal</span>
