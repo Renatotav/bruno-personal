@@ -15,15 +15,23 @@ export async function upsertAluno(data: {
   nome: string;
   telefone?: string;
   ativo?: boolean;
+  plano?: string;
+  mensalidade?: number;
+  tipoCobranca?: string;
 }) {
   try {
-    const { id, nome, telefone, ativo = true } = data;
+    const { id, nome, telefone, ativo = true, plano, mensalidade = 0, tipoCobranca = "MENSAL" } = data;
     if (!nome.trim()) throw new Error("Nome obrigatório.");
 
     if (id) {
-      await prisma.aluno.update({ where: { id }, data: { nome, telefone: telefone || null, ativo } });
+      await prisma.aluno.update({ 
+        where: { id }, 
+        data: { nome, telefone: telefone || null, ativo, plano: plano || null, mensalidade, tipoCobranca } 
+      });
     } else {
-      await prisma.aluno.create({ data: { nome, telefone: telefone || null, ativo } });
+      await prisma.aluno.create({ 
+        data: { nome, telefone: telefone || null, ativo, plano: plano || null, mensalidade, tipoCobranca } 
+      });
     }
 
     revalidatePath("/alunos");

@@ -6,6 +6,7 @@ import {
   salvarConfigCarro,
   salvarEndereco,
   salvarCustosFixos,
+  salvarMetaFaturamento,
   getAllConfigs,
 } from "@/app/actions/configuracoes";
 import {
@@ -23,6 +24,11 @@ export default function ConfiguracoesPage() {
   const [endereco, setEndereco] = useState("");
   const [endSubmitting, setEndSubmitting] = useState(false);
   const [endMsg, setEndMsg] = useState<Msg>(null);
+  
+  // ── Metas ──────────────────────────────────────────────────
+  const [metaForm, setMetaForm] = useState(String(CONFIG_FIXOS_PADRAO.metaFaturamento));
+  const [metaSubmitting, setMetaSubmitting] = useState(false);
+  const [metaMsg, setMetaMsg] = useState<Msg>(null);
   
   const [predictions, setPredictions] = useState<any[]>([]);
   const [showPredictions, setShowPredictions] = useState(false);
@@ -112,6 +118,7 @@ export default function ConfiguracoesPage() {
         manutencaoAnual: String(pf.manutencaoAnual),
         kmPorMes: String(pf.kmPorMes),
       });
+      setMetaForm(String(pf.metaFaturamento));
     });
   }, []);
 
@@ -124,6 +131,15 @@ export default function ConfiguracoesPage() {
     const r = await salvarEndereco({ endereco });
     setEndSubmitting(false);
     setEndMsg(r.success ? { type: "ok", text: "Endereço salvo!" } : { type: "err", text: "Erro ao salvar." });
+  };
+
+  const handleMeta = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMetaSubmitting(true);
+    setMetaMsg(null);
+    const r = await salvarMetaFaturamento({ meta: parseFloat(metaForm) || 0 });
+    setMetaSubmitting(false);
+    setMetaMsg(r.success ? { type: "ok", text: "Meta salva com sucesso!" } : { type: "err", text: "Erro ao salvar meta." });
   };
 
   const handleCarro = async (e: React.FormEvent) => {
@@ -315,6 +331,50 @@ export default function ConfiguracoesPage() {
               className="rounded-lg bg-teal-600 hover:bg-teal-500 py-2.5 px-5 text-sm font-semibold text-white transition-all disabled:opacity-50 whitespace-nowrap"
             >
               {endSubmitting ? "Salvando..." : "Salvar Endereço"}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* ── Faturamento e Metas ──────────────────────────────────────── */}
+      <div className="rounded-xl border border-slate-800 bg-slate-900/10 p-6">
+        <div className="mb-4">
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+            Faturamento e Metas
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Defina sua meta mensal de faturamento para acompanhar o progresso no Dashboard.
+          </p>
+        </div>
+        <form onSubmit={handleMeta} className="flex flex-col gap-3">
+          <div className="relative z-10 flex-1">
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={metaForm}
+              onChange={(e) => setMetaForm(e.target.value)}
+              placeholder="Ex: 10000.00"
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2.5 px-3 text-white outline-none focus:border-emerald-500 text-sm placeholder-slate-600"
+            />
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            {metaMsg && (
+              <p
+                className={`text-xs font-semibold ${
+                  metaMsg.type === "ok" ? "text-emerald-400" : "text-red-400"
+                }`}
+              >
+                {metaMsg.text}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={metaSubmitting}
+              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 py-2.5 px-5 text-sm font-semibold text-white transition-all disabled:opacity-50 whitespace-nowrap"
+            >
+              {metaSubmitting ? "Salvando..." : "Salvar Meta"}
             </button>
           </div>
         </form>

@@ -66,6 +66,17 @@ export async function salvarEndereco(data: { endereco: string }) {
   return { success: true };
 }
 
+export async function salvarMetaFaturamento(data: { meta: number }) {
+  await prisma.configuracao.upsert({
+    where: { key: "meta_faturamento" },
+    update: { value: String(data.meta) },
+    create: { key: "meta_faturamento", value: String(data.meta) },
+  });
+  revalidatePath("/configuracoes");
+  revalidatePath("/");
+  return { success: true };
+}
+
 export async function salvarCustosFixos(data: {
   ipvaAnual: number;
   seguroAnual: number;

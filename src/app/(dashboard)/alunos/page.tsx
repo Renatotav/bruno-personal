@@ -8,10 +8,13 @@ interface Aluno {
   nome: string;
   telefone: string | null;
   ativo: boolean;
+  plano: string | null;
+  mensalidade: number;
+  tipoCobranca: string;
   aulas: { id: string }[];
 }
 
-const EMPTY = { nome: "", telefone: "", ativo: true };
+const EMPTY = { nome: "", telefone: "", ativo: true, plano: "", mensalidade: 0, tipoCobranca: "MENSAL" };
 
 export default function AlunosPage() {
   const [alunos, setAlunos] = useState<Aluno[]>([]);
@@ -31,7 +34,14 @@ export default function AlunosPage() {
 
   const startEdit = (a: Aluno) => {
     setEditId(a.id);
-    setForm({ nome: a.nome, telefone: a.telefone ?? "", ativo: a.ativo });
+    setForm({ 
+      nome: a.nome, 
+      telefone: a.telefone ?? "", 
+      ativo: a.ativo,
+      plano: a.plano ?? "",
+      mensalidade: a.mensalidade,
+      tipoCobranca: a.tipoCobranca
+    });
     setMsg(null);
   };
 
@@ -41,7 +51,15 @@ export default function AlunosPage() {
     e.preventDefault();
     setSubmitting(true);
     setMsg(null);
-    const r = await upsertAluno({ id: editId ?? undefined, nome: form.nome, telefone: form.telefone || undefined, ativo: form.ativo });
+    const r = await upsertAluno({ 
+      id: editId ?? undefined, 
+      nome: form.nome, 
+      telefone: form.telefone || undefined, 
+      ativo: form.ativo,
+      plano: form.plano || undefined,
+      mensalidade: form.mensalidade,
+      tipoCobranca: form.tipoCobranca
+    });
     setSubmitting(false);
     if (r.success) {
       setMsg({ type: "ok", text: editId ? "Aluno atualizado!" : "Aluno cadastrado!" });
@@ -102,6 +120,47 @@ export default function AlunosPage() {
               </label>
             )}
 
+            <div className="border-t border-slate-800 pt-4 space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-400">Tipo de Cobrança</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setForm({ ...form, tipoCobranca: "MENSAL" })} className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-all ${form.tipoCobranca === "MENSAL" ? "bg-teal-900/40 border-teal-500 text-teal-400" : "bg-slate-950 border-slate-700 text-slate-500 hover:text-slate-300"}`}>
+                    Mensalidade Fixa
+                  </button>
+                  <button type="button" onClick={() => setForm({ ...form, tipoCobranca: "POR_AULA" })} className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-all ${form.tipoCobranca === "POR_AULA" ? "bg-teal-900/40 border-teal-500 text-teal-400" : "bg-slate-950 border-slate-700 text-slate-500 hover:text-slate-300"}`}>
+                    Por Aula (Avulso)
+                  </button>
+                </div>
+              </div>
+
+              {form.tipoCobranca === "MENSAL" && (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-400">Plano (Opcional)</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Evolution 2x"
+                      value={form.plano}
+                      onChange={e => setForm({ ...form, plano: e.target.value })}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2.5 px-3 text-white outline-none focus:border-teal-500 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-400">Valor da Mensalidade (R$)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="640.00"
+                      value={form.mensalidade}
+                      onChange={e => setForm({ ...form, mensalidade: parseFloat(e.target.value) || 0 })}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2.5 px-3 text-white outline-none focus:border-teal-500 text-sm"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
             {msg && (
               <p className={`text-xs p-2.5 rounded-lg border font-semibold ${msg.type === "ok" ? "text-emerald-400 bg-emerald-950/20 border-emerald-900/30" : "text-red-400 bg-red-950/20 border-red-900/30"}`}>
                 {msg.text}
@@ -143,9 +202,12 @@ export default function AlunosPage() {
                         {a.nome.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <p className="font-semibold text-white text-sm">{a.nome}</p>
-                        <p className="text-xs text-slate-500">
-                          {a.telefone ?? "Sem telefone"} · {a.aulas.length} aula{a.aulas.length !== 1 ? "s" : ""}/semana
+                        <p className="font-semibold text-white text-sm">
+                          {a.nome}
+                          {a.plano && <span className="ml-2 text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full">{a.plano}</span>}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {a.tipoCobranca === "MENSAL" ? `R$ ${a.mensalidade.toFixed(2)}/mês` : "Por Aula"} · {a.aulas.length} aula{a.aulas.length !== 1 ? "s" : ""}/sem
                         </p>
                       </div>
                     </div>

@@ -5,18 +5,19 @@ import Link from "next/link";
 export const revalidate = 0;
 
 export default async function AnalisePage() {
-  const [aulas, configs] = await Promise.all([
+  const [aulas, alunosAtivos, configs] = await Promise.all([
     prisma.aulaSemanal.findMany({
       where: { ativo: true },
       include: { aluno: true, local: true },
       orderBy: [{ diaDaSemana: "asc" }, { horarioInicio: "asc" }],
     }),
+    prisma.aluno.findMany({ where: { ativo: true } }),
     prisma.configuracao.findMany(),
   ]);
 
   const cfg = parseCfg(configs);
 
-  if (aulas.length === 0) {
+  if (aulas.length === 0 && alunosAtivos.length === 0) {
     return (
       <div className="space-y-6">
         <div>
@@ -24,9 +25,9 @@ export default async function AnalisePage() {
           <p className="text-sm text-slate-400">Rentabilidade real por aluno, bairro e horário.</p>
         </div>
         <div className="rounded-xl border border-slate-800 bg-slate-900/10 p-16 text-center">
-          <p className="text-slate-500 text-sm mb-3">Nenhuma aula cadastrada ainda.</p>
-          <Link href="/agenda" className="text-teal-400 text-sm hover:underline font-semibold">
-            Cadastrar aulas na Agenda →
+          <p className="text-slate-500 text-sm mb-3">Nenhuma aula ou aluno cadastrado ainda.</p>
+          <Link href="/alunos" className="text-teal-400 text-sm hover:underline font-semibold">
+            Cadastrar alunos primeiro →
           </Link>
         </div>
       </div>
@@ -39,31 +40,49 @@ export default async function AnalisePage() {
     resultado: calcularCustoAula(a.local.distanciaKm, a.valorAula, cfg),
   }));
 
-  // Totais gerais
-  const receitaBruta = aulasComResultado.reduce((s, a) => s + a.valorAula, 0);
-  const custoTotal = aulasComResultado.reduce((s, a) => s + a.resultado.custoTotal, 0);
-  const lucroLiquido = receitaBruta - custoTotal;
-  const percPerdaGeral = receitaBruta > 0 ? (custoTotal / receitaBruta) * 100 : 0;
+  // Receita Mensal Real
+  let receitaBrutaMensal = 0;
+  alunosAtivos.forEach(a => {
+    if (a.tipoCobranca === "MENSAL") {
+      receitaBrutaMensal += a.mensalidade;
+    }
+  });
+  aulasComResultado.forEach(a => {
+    if (a.aluno.tipoCobranca === "POR_AULA") {
+      receitaBrutaMensal += a.valorAula * 4.33;
+    }
+  });
 
-  // Ranking de alunos por lucro líquido
-  const porAluno = Object.values(
-    aulasComResultado.reduce<Record<string, { nome: string; aulas: typeof aulasComResultado }>>(
-      (acc, a) => {
-        if (!acc[a.alunoId]) acc[a.alunoId] = { nome: a.aluno.nome, aulas: [] };
-        acc[a.alunoId].aulas.push(a);
-        return acc;
-      },
-      {}
-    )
-  ).map(g => {
-    const receita = g.aulas.reduce((s, a) => s + a.valorAula, 0);
-    const custo = g.aulas.reduce((s, a) => s + a.resultado.custoTotal, 0);
+  const custoTotalMensal = aulasComResultado.reduce((s, a) => s + a.resultado.custoTotal, 0) * 4.33;
+  const lucroMensal = receitaBrutaMensal - custoTotalMensal;
+  const percPerdaGeral = receitaBrutaMensal > 0 ? (custoTotalMensal / receitaBrutaMensal) * 100 : 0;
+
+  // Ranking de alunos por lucro mensal
+  const porAlunoMap: Record<string, { aluno: any; aulas: typeof aulasComResultado }> = {};
+  alunosAtivos.forEach(a => {
+    porAlunoMap[a.id] = { aluno: a, aulas: [] };
+  });
+  aulasComResultado.forEach(a => {
+    if (!porAlunoMap[a.alunoId]) {
+      porAlunoMap[a.alunoId] = { aluno: a.aluno, aulas: [] };
+    }
+    porAlunoMap[a.alunoId].aulas.push(a);
+  });
+
+  const porAluno = Object.values(porAlunoMap).map(g => {
+    let receita = 0;
+    if (g.aluno.tipoCobranca === "MENSAL") {
+      receita = g.aluno.mensalidade;
+    } else {
+      receita = g.aulas.reduce((s, a) => s + a.valorAula, 0) * 4.33;
+    }
+    const custo = g.aulas.reduce((s, a) => s + a.resultado.custoTotal, 0) * 4.33;
     const lucro = receita - custo;
     const perc = receita > 0 ? (custo / receita) * 100 : 0;
-    return { nome: g.nome, receita, custo, lucro, perc, qtdAulas: g.aulas.length };
-  }).sort((a, b) => b.lucro - a.lucro);
+    return { nome: g.aluno.nome, receita, custo, lucro, perc, qtdAulas: g.aulas.length };
+  }).filter(g => g.receita > 0 || g.custo > 0).sort((a, b) => b.lucro - a.lucro);
 
-  // Ranking de bairros
+  // Ranking de bairros por lucro mensal
   const porBairro = Object.values(
     aulasComResultado.reduce<Record<string, { bairro: string; aulas: typeof aulasComResultado }>>(
       (acc, a) => {
@@ -75,8 +94,20 @@ export default async function AnalisePage() {
       {}
     )
   ).map(g => {
-    const receita = g.aulas.reduce((s, a) => s + a.valorAula, 0);
-    const custo = g.aulas.reduce((s, a) => s + a.resultado.custoTotal, 0);
+    // Para bairros, temos que ratear a mensalidade fixa do aluno pelas aulas que ele faz no bairro.
+    // Como simplificação, pegamos o custo mensal do bairro e comparamos com a proporção da receita daquelas aulas.
+    let receita = 0;
+    g.aulas.forEach(a => {
+      if (a.aluno.tipoCobranca === "MENSAL") {
+        // Se a pessoa paga 600 e tem 2 aulas por semana. Cada aula "vale" 300 de mensalidade.
+        const totalAulasAluno = aulasComResultado.filter(x => x.alunoId === a.alunoId).length;
+        if (totalAulasAluno > 0) receita += a.aluno.mensalidade / totalAulasAluno;
+      } else {
+        receita += a.valorAula * 4.33;
+      }
+    });
+    
+    const custo = g.aulas.reduce((s, a) => s + a.resultado.custoTotal, 0) * 4.33;
     const lucro = receita - custo;
     const perc = receita > 0 ? (custo / receita) * 100 : 0;
     return { bairro: g.bairro, receita, custo, lucro, perc, qtdAulas: g.aulas.length };
@@ -90,7 +121,15 @@ export default async function AnalisePage() {
   // Heatmap por dia: lucro líquido
   const porDia = DIAS_SEMANA.map((dia, i) => {
     const asDia = aulasComResultado.filter(a => a.diaDaSemana === i);
-    const rec = asDia.reduce((s, a) => s + a.valorAula, 0);
+    let rec = 0;
+    asDia.forEach(a => {
+      if (a.aluno.tipoCobranca === "MENSAL") {
+        const totalAulasAluno = aulasComResultado.filter(x => x.alunoId === a.alunoId).length;
+        if (totalAulasAluno > 0) rec += (a.aluno.mensalidade / totalAulasAluno) / 4.33; // Quebra a mensalidade para 1 dia
+      } else {
+        rec += a.valorAula;
+      }
+    });
     const cst = asDia.reduce((s, a) => s + a.resultado.custoTotal, 0);
     return { dia, qtd: asDia.length, receita: rec, custo: cst, lucro: rec - cst };
   }).filter(d => d.qtd > 0);
@@ -108,31 +147,31 @@ export default async function AnalisePage() {
       {/* Cards de resumo */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-slate-800 bg-slate-900/20 p-5">
-          <p className="text-xs font-semibold text-slate-500 uppercase">Receita Bruta/Semana</p>
-          <p className="text-3xl font-bold text-emerald-400 mt-2">{formatBRL(receitaBruta)}</p>
-          <p className="text-xs text-slate-500 mt-1">{aulas.length} aulas</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase">Receita Bruta Mensal</p>
+          <p className="text-3xl font-bold text-emerald-400 mt-2">{formatBRL(receitaBrutaMensal)}</p>
+          <p className="text-xs text-slate-500 mt-1">Soma das mensalidades</p>
         </div>
         <div className="rounded-xl border border-slate-800 bg-slate-900/20 p-5">
-          <p className="text-xs font-semibold text-slate-500 uppercase">Custo Logístico/Semana</p>
-          <p className="text-3xl font-bold text-red-400 mt-2">{formatBRL(custoTotal)}</p>
-          <p className="text-xs text-slate-500 mt-1">{percPerdaGeral.toFixed(1)}% da receita</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase">Custo Logístico Mensal</p>
+          <p className="text-3xl font-bold text-red-400 mt-2">{formatBRL(custoTotalMensal)}</p>
+          <p className="text-xs text-slate-500 mt-1">{percPerdaGeral.toFixed(1)}% da receita mensal</p>
         </div>
         <div className="rounded-xl border border-teal-800/30 bg-teal-950/10 p-5">
-          <p className="text-xs font-semibold text-slate-500 uppercase">Lucro Líquido/Semana</p>
-          <p className="text-3xl font-bold text-teal-400 mt-2">{formatBRL(lucroLiquido)}</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase">Lucro Líquido Mensal</p>
+          <p className="text-3xl font-bold text-teal-400 mt-2">{formatBRL(lucroMensal)}</p>
           <p className="text-xs text-slate-500 mt-1">{(100 - percPerdaGeral).toFixed(1)}% chega no bolso</p>
         </div>
         <div className="rounded-xl border border-slate-800 bg-slate-900/20 p-5">
-          <p className="text-xs font-semibold text-slate-500 uppercase">Lucro Mensal Estimado</p>
-          <p className="text-3xl font-bold text-white mt-2">{formatBRL(lucroLiquido * 4.33)}</p>
-          <p className="text-xs text-slate-500 mt-1">×4.33 semanas</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase">Aulas com Prejuízo Logístico</p>
+          <p className="text-3xl font-bold text-yellow-400 mt-2">{aulasAlerta.length}</p>
+          <p className="text-xs text-slate-500 mt-1">Acima de 25% de perda</p>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Ranking de Alunos */}
         <div className="rounded-xl border border-slate-800 bg-slate-900/10 p-6">
-          <h2 className="text-lg font-bold text-white mb-4">Ranking de Alunos — por Lucro Líquido</h2>
+          <h2 className="text-lg font-bold text-white mb-4">Ranking de Alunos — por Lucro Mensal Líquido</h2>
           <div className="space-y-2">
             {porAluno.map((a, i) => (
               <div key={a.nome} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/40 p-3">
@@ -140,7 +179,7 @@ export default async function AnalisePage() {
                   <span className="text-slate-600 text-xs font-bold w-5">#{i + 1}</span>
                   <div>
                     <p className="text-sm font-semibold text-white">{a.nome}</p>
-                    <p className="text-xs text-slate-500">{a.qtdAulas}×/sem · custo {formatBRL(a.custo)}</p>
+                    <p className="text-xs text-slate-500">{a.qtdAulas}×/sem · rec. {formatBRL(a.receita)} · cust. {formatBRL(a.custo)}</p>
                   </div>
                 </div>
                 <div className="text-right">

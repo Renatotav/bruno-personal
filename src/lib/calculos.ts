@@ -84,6 +84,7 @@ export interface ConfigFixos {
   dpvatAnual: number;
   manutencaoAnual: number;
   kmPorMes: number;
+  metaFaturamento: number;
 }
 
 export const CONFIG_FIXOS_PADRAO: ConfigFixos = {
@@ -92,6 +93,7 @@ export const CONFIG_FIXOS_PADRAO: ConfigFixos = {
   dpvatAnual: 0,
   manutencaoAnual: 0,
   kmPorMes: 1000,
+  metaFaturamento: 10000,
 };
 
 export function parseCfgFixos(configs: { key: string; value: string }[]): ConfigFixos {
@@ -105,6 +107,7 @@ export function parseCfgFixos(configs: { key: string; value: string }[]): Config
     dpvatAnual:       get("dpvat_anual",        CONFIG_FIXOS_PADRAO.dpvatAnual),
     manutencaoAnual:  get("manutencao_anual",   CONFIG_FIXOS_PADRAO.manutencaoAnual),
     kmPorMes:         get("km_por_mes",         CONFIG_FIXOS_PADRAO.kmPorMes),
+    metaFaturamento:  get("meta_faturamento",   CONFIG_FIXOS_PADRAO.metaFaturamento),
   };
 }
 

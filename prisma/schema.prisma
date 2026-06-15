@@ -7,12 +7,15 @@ datasource db {
 }
 
 model Aluno {
-  id         String        @id @default(uuid())
-  nome       String
-  telefone   String?
-  ativo      Boolean       @default(true)
-  aulas      AulaSemanal[]
-  createdAt  DateTime      @default(now())
+  id           String        @id @default(uuid())
+  nome         String
+  telefone     String?
+  ativo        Boolean       @default(true)
+  plano        String?       // Ex: "Evolution 2x", "Elite 3x"
+  mensalidade  Float         @default(0.0)
+  tipoCobranca String        @default("MENSAL") // "MENSAL" ou "POR_AULA"
+  aulas        AulaSemanal[]
+  createdAt    DateTime      @default(now())
 }
 
 model Local {
