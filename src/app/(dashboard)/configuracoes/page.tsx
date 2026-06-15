@@ -247,6 +247,7 @@ export default function ConfiguracoesPage() {
     dpvatAnual: parseFloat(fixosForm.dpvatAnual) || 0,
     manutencaoAnual: parseFloat(fixosForm.manutencaoAnual) || 0,
     kmPorMes: parseFloat(fixosForm.kmPorMes) || 1000,
+    metaFaturamento: parseFloat(metaForm) || 0,
   });
 
   const inputClass =
