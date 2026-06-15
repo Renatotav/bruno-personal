@@ -51,3 +51,36 @@ export async function getConfigCarro() {
     where: { key: { in: ["preco_gasolina", "km_por_litro", "custo_por_km"] } },
   });
 }
+
+export async function getAllConfigs() {
+  return prisma.configuracao.findMany();
+}
+
+export async function salvarEndereco(data: { endereco: string }) {
+  await prisma.configuracao.upsert({
+    where: { key: "endereco" },
+    update: { value: data.endereco },
+    create: { key: "endereco", value: data.endereco },
+  });
+  revalidatePath("/configuracoes");
+  return { success: true };
+}
+
+export async function salvarCustosFixos(data: {
+  ipvaAnual: number;
+  seguroAnual: number;
+  dpvatAnual: number;
+  manutencaoMensal: number;
+  kmPorMes: number;
+}) {
+  await Promise.all([
+    prisma.configuracao.upsert({ where: { key: "ipva_anual" }, update: { value: String(data.ipvaAnual) }, create: { key: "ipva_anual", value: String(data.ipvaAnual) } }),
+    prisma.configuracao.upsert({ where: { key: "seguro_anual" }, update: { value: String(data.seguroAnual) }, create: { key: "seguro_anual", value: String(data.seguroAnual) } }),
+    prisma.configuracao.upsert({ where: { key: "dpvat_anual" }, update: { value: String(data.dpvatAnual) }, create: { key: "dpvat_anual", value: String(data.dpvatAnual) } }),
+    prisma.configuracao.upsert({ where: { key: "manutencao_mensal" }, update: { value: String(data.manutencaoMensal) }, create: { key: "manutencao_mensal", value: String(data.manutencaoMensal) } }),
+    prisma.configuracao.upsert({ where: { key: "km_por_mes" }, update: { value: String(data.kmPorMes) }, create: { key: "km_por_mes", value: String(data.kmPorMes) } }),
+  ]);
+  revalidatePath("/configuracoes");
+  revalidatePath("/analise");
+  return { success: true };
+}
