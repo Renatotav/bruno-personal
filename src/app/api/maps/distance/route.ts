@@ -4,6 +4,7 @@ import { getAllConfigs } from "@/app/actions/configuracoes";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const placeId = searchParams.get("placeId");
+  const customOrigin = searchParams.get("originAddress"); // Origem opcional
 
   if (!placeId) {
     return NextResponse.json({ success: false, error: "Missing placeId" }, { status: 400 });
@@ -15,13 +16,13 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. Obter detalhes do lugar (bairro e endereço exato) usando Places API (New)
+    // 1. Obter detalhes do lugar (bairro, endereço e tipo) usando Places API (New)
     const detailsUrl = `https://places.googleapis.com/v1/places/${placeId}`;
     const detailsRes = await fetch(detailsUrl, {
       method: "GET",
       headers: {
         "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": "id,displayName,formattedAddress,addressComponents",
+        "X-Goog-FieldMask": "id,displayName,formattedAddress,addressComponents,types,primaryType",
       },
     });
     const detailsData = await detailsRes.json();
@@ -48,18 +49,26 @@ export async function GET(request: Request) {
     const destinationAddress = detailsData.formattedAddress;
     const nomeLocal = detailsData.displayName?.text || "";
 
-    // 2. Buscar endereço base nas configurações
-    const configs = await getAllConfigs();
-    const originAddress = configs.find((c) => c.key === "endereco")?.value;
+    // 1.5 Inferir tipo
+    const isGym = (detailsData.types || []).includes("gym") || detailsData.primaryType === "gym" || detailsData.primaryType === "fitness_center" || (detailsData.types || []).includes("fitness_center");
+    const inferredType = isGym ? "ACADEMIA" : "CONDOMINIO";
+
+    // 2. Determinar endereço de origem
+    let originAddress = customOrigin;
+    if (!originAddress) {
+      const configs = await getAllConfigs();
+      originAddress = configs.find((c) => c.key === "endereco")?.value;
+    }
 
     if (!originAddress) {
       return NextResponse.json({
         success: true,
         bairro,
+        tipo: inferredType,
         distanciaKm: null,
         tempoMinutos: null,
         nome: nomeLocal,
-        error: "Endereço base não configurado. Adicione-o em Configurações.",
+        error: "Endereço de partida não configurado.",
       });
     }
 
@@ -91,6 +100,7 @@ export async function GET(request: Request) {
       return NextResponse.json({
         success: true,
         bairro,
+        tipo: inferredType,
         distanciaKm: null,
         tempoMinutos: null,
         nome: nomeLocal,
@@ -105,6 +115,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       bairro,
+      tipo: inferredType,
       distanciaKm,
       tempoMinutos,
       nome: nomeLocal,

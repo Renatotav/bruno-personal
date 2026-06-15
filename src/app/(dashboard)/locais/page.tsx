@@ -36,6 +36,7 @@ export default function LocaisPage() {
   useEffect(() => { load(); }, []);
 
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [origem, setOrigem] = useState<string>(""); // "" = Endereço Base
 
   const handleSearchChange = (val: string) => {
     setSearchQuery(val);
@@ -69,7 +70,13 @@ export default function LocaisPage() {
     setSearching(true);
     setMsg(null);
     try {
-      const res = await fetch(`/api/maps/distance?placeId=${placeId}`);
+      const url = new URL("/api/maps/distance", window.location.origin);
+      url.searchParams.append("placeId", placeId);
+      if (origem !== "") {
+        url.searchParams.append("originAddress", origem + ", Fortaleza"); // Adiciona origem customizada
+      }
+
+      const res = await fetch(url.toString());
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
 
@@ -77,6 +84,7 @@ export default function LocaisPage() {
         ...prev,
         nome: data.nome || prev.nome,
         bairro: data.bairro || prev.bairro,
+        tipo: data.tipo || prev.tipo,
         distanciaKm: data.distanciaKm !== null ? String(data.distanciaKm) : prev.distanciaKm,
         tempoMinutos: data.tempoMinutos !== null ? String(data.tempoMinutos) : prev.tempoMinutos,
       }));
@@ -153,6 +161,23 @@ export default function LocaisPage() {
         <div className="rounded-xl border border-slate-800 bg-slate-900/10 p-6 h-fit space-y-4">
           <h2 className="text-lg font-bold text-white">{editId ? "Editar Local" : "Novo Local"}</h2>
           
+          <div className="space-y-1 mb-4">
+            <label className="text-xs font-semibold text-slate-400">Ponto de Partida (Origem do Trajeto)</label>
+            <select
+              value={origem}
+              onChange={(e) => setOrigem(e.target.value)}
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2.5 px-3 text-white outline-none focus:border-teal-500 text-sm"
+            >
+              <option value="">Saindo de Casa (Endereço Base)</option>
+              {locais.map((l) => (
+                <option key={l.id} value={`${l.nome}, ${l.bairro}`}>
+                  Saindo de: {l.nome} ({l.bairro})
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] text-slate-500">Se a aula for logo após outra, escolha o local anterior para calcular o trajeto correto.</p>
+          </div>
+
           <div className="relative space-y-1 mb-4 z-10">
             <label className="text-xs font-semibold text-purple-400 flex items-center gap-1">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
