@@ -23,7 +23,7 @@ Estrutura JSON obrigatória:
   "descricao": string (máximo 60 caracteres descrevendo o documento lido)
 }`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
     const res = await fetch(url, {
       method: "POST",
