@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   alterarSenha,
   salvarConfigCarro,
@@ -32,6 +32,12 @@ export default function ConfiguracoesPage() {
   });
   const [cfgSubmitting, setCfgSubmitting] = useState(false);
   const [cfgMsg, setCfgMsg] = useState<Msg>(null);
+
+  // ── Extração por IA ──────────────────────────────────────────
+  const [isDragging, setIsDragging] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [extractMsg, setExtractMsg] = useState<Msg>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Custos fixos ─────────────────────────────────────────────
   const [fixosForm, setFixosForm] = useState({
@@ -127,6 +133,52 @@ export default function ConfiguracoesPage() {
     } else {
       setSenhaMsg({ type: "err", text: r.error ?? "Erro ao alterar senha." });
     }
+  };
+
+  // ── Extração por IA ──────────────────────────────────────────
+  const handleExtract = async (file: File) => {
+    const MAX_MB = 5;
+    if (file.size > MAX_MB * 1024 * 1024) {
+      setExtractMsg({ type: "err", text: `Arquivo muito grande. Máximo ${MAX_MB} MB.` });
+      return;
+    }
+    const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!allowed.includes(file.type)) {
+      setExtractMsg({ type: "err", text: "Formato não suportado. Use JPG, PNG, WebP ou PDF." });
+      return;
+    }
+
+    setExtracting(true);
+    setExtractMsg(null);
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const dataUrl = reader.result as string;
+        const base64 = dataUrl.split(",")[1];
+        const res = await fetch("/api/extrair-custos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ base64, mediaType: file.type }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        setFixosForm((prev) => ({
+          ...prev,
+          ...(data.ipvaAnual        > 0 ? { ipvaAnual:        String(data.ipvaAnual) }        : {}),
+          ...(data.seguroAnual      > 0 ? { seguroAnual:      String(data.seguroAnual) }      : {}),
+          ...(data.dpvatAnual       > 0 ? { dpvatAnual:       String(data.dpvatAnual) }       : {}),
+          ...(data.manutencaoMensal > 0 ? { manutencaoMensal: String(data.manutencaoMensal) } : {}),
+        }));
+        setExtractMsg({ type: "ok", text: data.descricao ? `Preenchido: ${data.descricao}` : "Dados extraídos com sucesso!" });
+      } catch (e: any) {
+        setExtractMsg({ type: "err", text: e.message ?? "Erro ao extrair dados." });
+      } finally {
+        setExtracting(false);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   // ── Preview helpers ───────────────────────────────────────────
@@ -321,6 +373,76 @@ export default function ConfiguracoesPage() {
             Gastos anuais e mensais que existem independente de quantos km você roda.
           </p>
         </div>
+
+        {/* ── Dropzone IA ──────────────────────────────────── */}
+        <div
+          onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+            const file = e.dataTransfer.files[0];
+            if (file) handleExtract(file);
+          }}
+          onClick={() => !extracting && fileInputRef.current?.click()}
+          className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-all select-none ${
+            isDragging
+              ? "border-purple-500 bg-purple-950/20"
+              : extracting
+              ? "border-slate-700 bg-slate-900/20 cursor-wait"
+              : "border-slate-700 hover:border-purple-600 hover:bg-purple-950/10"
+          }`}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) { handleExtract(file); e.target.value = ""; }
+            }}
+          />
+
+          {extracting ? (
+            <>
+              <svg className="h-8 w-8 animate-spin text-purple-400" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <p className="text-sm font-medium text-purple-300">Analisando documento com IA...</p>
+              <p className="text-xs text-slate-500">Aguarde alguns segundos</p>
+            </>
+          ) : (
+            <>
+              <svg className={`h-8 w-8 transition-colors ${isDragging ? "text-purple-400" : "text-slate-500"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              <div>
+                <p className={`text-sm font-medium transition-colors ${isDragging ? "text-purple-300" : "text-slate-300"}`}>
+                  {isDragging ? "Solte o arquivo aqui" : "Arraste um documento ou clique para selecionar"}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Boleto IPVA, apólice de seguro, nota de manutenção · JPG, PNG, PDF · máx. 5 MB
+                </p>
+              </div>
+              <span className="rounded-md border border-purple-700/60 bg-purple-900/20 px-3 py-1 text-xs font-medium text-purple-400">
+                Preenchimento automático via IA
+              </span>
+            </>
+          )}
+        </div>
+
+        {extractMsg && (
+          <p className={`text-xs p-2.5 rounded-lg border font-semibold ${
+            extractMsg.type === "ok"
+              ? "text-emerald-400 bg-emerald-950/20 border-emerald-900/30"
+              : "text-red-400 bg-red-950/20 border-red-900/30"
+          }`}>
+            {extractMsg.text}
+          </p>
+        )}
 
         <form onSubmit={handleFixos} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
