@@ -14,23 +14,37 @@ export async function GET(request: Request) {
   }
 
   try {
-    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
-      input
-    )}&components=country:br&language=pt-BR&key=${apiKey}`;
-
-    const res = await fetch(url);
+    const url = "https://places.googleapis.com/v1/places:autocomplete";
+    
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+      },
+      body: JSON.stringify({
+        input: input,
+        languageCode: "pt-BR",
+        regionCode: "BR",
+        // restringe para retornar lugares em geral (opcional)
+      }),
+    });
+    
     const data = await res.json();
 
-    if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-      throw new Error(data.error_message || data.status);
+    if (!res.ok) {
+      throw new Error(data.error?.message || "Erro na Google Places API");
     }
 
-    const predictions = (data.predictions || []).map((p: any) => ({
-      placeId: p.place_id,
-      description: p.description,
-      mainText: p.structured_formatting?.main_text || p.description,
-      secondaryText: p.structured_formatting?.secondary_text || "",
-    }));
+    const predictions = (data.suggestions || []).map((s: any) => {
+      const p = s.placePrediction;
+      return {
+        placeId: p.placeId,
+        description: p.text?.text || "",
+        mainText: p.structuredFormat?.mainText?.text || p.text?.text,
+        secondaryText: p.structuredFormat?.secondaryText?.text || "",
+      };
+    });
 
     return NextResponse.json({ success: true, predictions });
   } catch (error: any) {

@@ -15,28 +15,38 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. Obter detalhes do lugar (bairro e endereço exato)
-    const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=address_component,geometry,name,formatted_address&language=pt-BR&key=${apiKey}`;
-    const detailsRes = await fetch(detailsUrl);
+    // 1. Obter detalhes do lugar (bairro e endereço exato) usando Places API (New)
+    const detailsUrl = `https://places.googleapis.com/v1/places/${placeId}`;
+    const detailsRes = await fetch(detailsUrl, {
+      method: "GET",
+      headers: {
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask": "id,displayName,formattedAddress,addressComponents",
+      },
+    });
     const detailsData = await detailsRes.json();
 
-    if (detailsData.status !== "OK") {
-      throw new Error(detailsData.error_message || detailsData.status);
+    if (!detailsRes.ok) {
+      throw new Error(detailsData.error?.message || "Erro ao obter detalhes do local");
     }
 
-    const result = detailsData.result;
     let bairro = "";
-    if (result.address_components) {
-      const sublocality = result.address_components.find((c: any) => c.types.includes("sublocality_level_1") || c.types.includes("sublocality"));
+    if (detailsData.addressComponents) {
+      const sublocality = detailsData.addressComponents.find((c: any) => 
+        c.types.includes("sublocality_level_1") || c.types.includes("sublocality")
+      );
       if (sublocality) {
-        bairro = sublocality.long_name;
+        bairro = sublocality.longText;
       } else {
-        const neighborhood = result.address_components.find((c: any) => c.types.includes("neighborhood"));
-        if (neighborhood) bairro = neighborhood.long_name;
+        const neighborhood = detailsData.addressComponents.find((c: any) => 
+          c.types.includes("neighborhood")
+        );
+        if (neighborhood) bairro = neighborhood.longText;
       }
     }
 
-    const destinationAddress = result.formatted_address;
+    const destinationAddress = detailsData.formattedAddress;
+    const nomeLocal = detailsData.displayName?.text || "";
 
     // 2. Buscar endereço base nas configurações
     const configs = await getAllConfigs();
@@ -48,44 +58,56 @@ export async function GET(request: Request) {
         bairro,
         distanciaKm: null,
         tempoMinutos: null,
-        nome: result.name,
+        nome: nomeLocal,
         error: "Endereço base não configurado. Adicione-o em Configurações.",
       });
     }
 
-    // 3. Calcular a distância
-    const distUrl = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(
-      originAddress
-    )}&destinations=${encodeURIComponent(destinationAddress)}&language=pt-BR&key=${apiKey}`;
+    // 3. Calcular a distância usando Routes API
+    const distUrl = "https://routes.googleapis.com/directions/v2:computeRoutes";
+    const distRes = await fetch(distUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask": "routes.distanceMeters,routes.duration",
+      },
+      body: JSON.stringify({
+        origin: { address: originAddress },
+        destination: { placeId: placeId },
+        travelMode: "DRIVE",
+        languageCode: "pt-BR",
+      }),
+    });
     
-    const distRes = await fetch(distUrl);
     const distData = await distRes.json();
 
-    if (distData.status !== "OK") {
-      throw new Error(distData.error_message || distData.status);
+    if (!distRes.ok) {
+      throw new Error(distData.error?.message || "Erro ao calcular rota");
     }
 
-    const element = distData.rows[0]?.elements[0];
-    if (!element || element.status !== "OK") {
+    const route = distData.routes?.[0];
+    if (!route) {
       return NextResponse.json({
         success: true,
         bairro,
         distanciaKm: null,
         tempoMinutos: null,
-        nome: result.name,
+        nome: nomeLocal,
         error: "Não foi possível calcular a rota até este local.",
       });
     }
 
-    const distanciaKm = parseFloat((element.distance.value / 1000).toFixed(1)); // em metros
-    const tempoMinutos = Math.round(element.duration.value / 60); // em segundos
+    const distanciaKm = parseFloat((route.distanceMeters / 1000).toFixed(1)); // em metros
+    const durationSeconds = parseInt(route.duration.replace("s", ""), 10);
+    const tempoMinutos = Math.round(durationSeconds / 60); // em segundos para minutos
 
     return NextResponse.json({
       success: true,
       bairro,
       distanciaKm,
       tempoMinutos,
-      nome: result.name,
+      nome: nomeLocal,
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
