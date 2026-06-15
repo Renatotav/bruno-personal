@@ -48,15 +48,15 @@ Estrutura JSON obrigatória:
     const data = await res.json();
 
     if (!res.ok) {
-      // Se deu erro, vamos listar os modelos disponiveis para ajudar a depurar
+      let available = "Erro ao buscar modelos";
       try {
         const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`);
         const listData = await listRes.json();
-        const available = listData.models?.map((m: any) => m.name).join(", ") || "Nenhum modelo encontrado";
-        throw new Error(`Erro API: ${data.error?.message}. Modelos disponíveis na sua conta: ${available}`);
+        available = listData.models?.map((m: any) => m.name).join(", ") || "Nenhum modelo encontrado";
       } catch (e2) {
-        throw new Error(data.error?.message || "Erro na API do Gemini");
+        console.error("Erro no debug", e2);
       }
+      throw new Error(`${data.error?.message}. MODELOS LIBERADOS: ${available}`);
     }
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
