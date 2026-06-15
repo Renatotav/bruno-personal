@@ -57,7 +57,7 @@ export async function GET(request: Request) {
     let originAddress = customOrigin;
     if (!originAddress) {
       const configs = await getAllConfigs();
-      originAddress = configs.find((c) => c.key === "endereco")?.value;
+      originAddress = configs.find((c) => c.key === "endereco")?.value || null;
     }
 
     if (!originAddress) {
