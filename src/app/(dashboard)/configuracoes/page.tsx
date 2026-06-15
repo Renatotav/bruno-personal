@@ -23,6 +23,42 @@ export default function ConfiguracoesPage() {
   const [endereco, setEndereco] = useState("");
   const [endSubmitting, setEndSubmitting] = useState(false);
   const [endMsg, setEndMsg] = useState<Msg>(null);
+  
+  const [predictions, setPredictions] = useState<any[]>([]);
+  const [showPredictions, setShowPredictions] = useState(false);
+  const [searchingAddress, setSearchingAddress] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleAddressSearch = (val: string) => {
+    setEndereco(val);
+    if (!val.trim()) {
+      setPredictions([]);
+      setShowPredictions(false);
+      return;
+    }
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        setSearchingAddress(true);
+        const res = await fetch(`/api/maps/autocomplete?q=${encodeURIComponent(val)}`);
+        const data = await res.json();
+        if (data.success) {
+          setPredictions(data.predictions);
+          setShowPredictions(true);
+        }
+      } catch (e) {
+        console.error("Erro", e);
+      } finally {
+        setSearchingAddress(false);
+      }
+    }, 500);
+  };
+
+  const handleSelectPrediction = (description: string) => {
+    setEndereco(description);
+    setShowPredictions(false);
+    setPredictions([]);
+  };
 
   // ── Custos variáveis ─────────────────────────────────────────
   const [cfgForm, setCfgForm] = useState({
@@ -84,6 +120,7 @@ export default function ConfiguracoesPage() {
     e.preventDefault();
     setEndSubmitting(true);
     setEndMsg(null);
+    setShowPredictions(false);
     const r = await salvarEndereco({ endereco });
     setEndSubmitting(false);
     setEndMsg(r.success ? { type: "ok", text: "Endereço salvo!" } : { type: "err", text: "Erro ao salvar." });
@@ -224,19 +261,44 @@ export default function ConfiguracoesPage() {
       {/* ── Endereço ─────────────────────────────────────────── */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/10 p-6">
         <div className="mb-4">
-          <h2 className="text-lg font-bold text-white">Endereço de Partida</h2>
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <svg className="w-5 h-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            Endereço de Partida
+          </h2>
           <p className="text-xs text-slate-400 mt-1">
             Seu endereço ou bairro — ponto de partida para todos os deslocamentos.
           </p>
         </div>
-        <form onSubmit={handleEndereco} className="flex flex-col sm:flex-row gap-3">
-          <input
-            type="text"
-            value={endereco}
-            onChange={(e) => setEndereco(e.target.value)}
-            placeholder="Ex: Rua das Flores, 123 — Jardim Europa, São Paulo"
-            className="flex-1 rounded-lg border border-slate-700 bg-slate-950 py-2.5 px-3 text-white outline-none focus:border-teal-500 text-sm placeholder-slate-600"
-          />
+        <form onSubmit={handleEndereco} className="flex flex-col gap-3">
+          <div className="relative z-20 flex-1">
+            <input
+              type="text"
+              value={endereco}
+              onChange={(e) => handleAddressSearch(e.target.value)}
+              placeholder="Pesquisar no Google Maps..."
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2.5 px-3 text-white outline-none focus:border-teal-500 text-sm placeholder-slate-600"
+            />
+            {searchingAddress && (
+              <div className="absolute right-3 top-2.5">
+                <svg className="w-4 h-4 text-teal-400 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              </div>
+            )}
+            {showPredictions && predictions.length > 0 && (
+              <div className="absolute left-0 right-0 mt-1 rounded-lg border border-slate-700 bg-slate-900 shadow-xl overflow-hidden z-30">
+                {predictions.map((p) => (
+                  <button
+                    key={p.placeId}
+                    type="button"
+                    onClick={() => handleSelectPrediction(p.description)}
+                    className="w-full text-left px-4 py-2 text-sm hover:bg-slate-800 focus:bg-slate-800 transition-colors border-b border-slate-800 last:border-0"
+                  >
+                    <div className="font-medium text-white">{p.mainText}</div>
+                    <div className="text-xs text-slate-400 truncate">{p.secondaryText}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-3 shrink-0">
             {endMsg && (
               <p
