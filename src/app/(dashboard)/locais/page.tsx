@@ -35,8 +35,11 @@ export default function LocaisPage() {
 
   useEffect(() => { load(); }, []);
 
+  const [searchError, setSearchError] = useState<string | null>(null);
+
   const handleSearchChange = (val: string) => {
     setSearchQuery(val);
+    setSearchError(null);
     if (!val.trim()) {
       setPredictions([]);
       setShowPredictions(false);
@@ -50,8 +53,11 @@ export default function LocaisPage() {
         if (data.success) {
           setPredictions(data.predictions);
           setShowPredictions(true);
+        } else {
+          setSearchError(data.error || "Erro ao buscar locais.");
         }
       } catch (e) {
+        setSearchError("Falha na conexão com o servidor.");
         console.error("Erro ao buscar autocomplete", e);
       }
     }, 500);
@@ -169,6 +175,9 @@ export default function LocaisPage() {
                   </button>
                 ))}
               </div>
+            )}
+            {searchError && (
+              <p className="text-xs text-red-400 mt-1">{searchError}</p>
             )}
           </div>
 
