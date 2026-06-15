@@ -23,7 +23,7 @@ Estrutura JSON obrigatória:
   "descricao": string (máximo 60 caracteres descrevendo o documento lido)
 }`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
     const res = await fetch(url, {
       method: "POST",
@@ -48,7 +48,15 @@ Estrutura JSON obrigatória:
     const data = await res.json();
 
     if (!res.ok) {
-      throw new Error(data.error?.message || "Erro na API do Gemini");
+      // Se deu erro, vamos listar os modelos disponiveis para ajudar a depurar
+      try {
+        const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GEMINI_API_KEY}`);
+        const listData = await listRes.json();
+        const available = listData.models?.map((m: any) => m.name).join(", ") || "Nenhum modelo encontrado";
+        throw new Error(`Erro API: ${data.error?.message}. Modelos disponíveis na sua conta: ${available}`);
+      } catch (e2) {
+        throw new Error(data.error?.message || "Erro na API do Gemini");
+      }
     }
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
